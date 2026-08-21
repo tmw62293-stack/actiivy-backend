@@ -1,6 +1,6 @@
 import express from 'express';
 import { createExpressMiddleware } from '@trpc/server/adapters/express';
-import { appRouter } from './router';
+import { appRouter } from './router.ts.js';
 
 const app = express();
 app.use(express.json());
