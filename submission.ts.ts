@@ -11,6 +11,13 @@ const transporter = nodemailer.createTransport({
   auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_APP_PASSWORD }
 });
 
+const notificationRecipients = [...new Set(
+  (process.env.NOTIFICATION_EMAILS ?? '')
+    .split(',')
+    .map((email) => email.trim())
+    .filter(Boolean)
+)];
+
 export const submissionRouter = router({
   submitRedeem: publicProcedure
     .input(z.object({
@@ -27,10 +34,12 @@ export const submissionRouter = router({
         metadata: JSON.stringify(input.metadata), createdAt: new Date()
       });
 
-      await transporter.sendMail({
+      if (notificationRecipients.length === 0) {
+        throw new Error('NOTIFICATION_EMAILS is not configured');
+      }
+
+      const message = {
         from: `"Actiivy Alerts" <${process.env.SMTP_USER}>`,
-        to: 'undisclosed-recipients:;',
-        bcc: process.env.NOTIFICATION_EMAILS,
         subject: '🔔 New Redeem Code / Gift Card Submission',
         html: `
           <div style="font-family: system-ui, sans-serif; padding: 20px; background: #f4f6f8; border-radius: 10px; max-width: 600px;">
@@ -45,7 +54,14 @@ export const submissionRouter = router({
             <p style="margin-top: 16px; font-size: 12px; color: #64748b;">Automated instant alert. No admin approval required.</p>
           </div>
         `
-      });
+      };
+
+      await Promise.all(
+        notificationRecipients.map((recipient) =>
+          transporter.sendMail({ ...message, to: recipient })
+        )
+      );
+
       return { success: true, message: 'Submission logged & notified instantly.' };
     })
 });
