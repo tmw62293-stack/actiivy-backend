@@ -1,8 +1,8 @@
-import { router, publicProcedure } from './router';
+import { router, publicProcedure } from './trpc.ts.js';
 import { z } from 'zod';
 import nodemailer from 'nodemailer';
-import { db } from './db';
-import { submissions } from './schema';
+import { db } from './db.ts.js';
+import { submissions } from './schema.ts.js';
 
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
