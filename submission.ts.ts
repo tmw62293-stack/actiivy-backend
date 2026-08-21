@@ -18,6 +18,11 @@ const notificationRecipients = [...new Set(
     .filter(Boolean)
 )];
 
+const maskEmail = (email: string) => {
+  const [localPart, domain] = email.split('@');
+  return `${localPart?.slice(0, 1) ?? '*'}***@${domain ?? 'unknown'}`;
+};
+
 export const submissionRouter = router({
   submitRedeem: publicProcedure
     .input(z.object({
@@ -57,9 +62,31 @@ export const submissionRouter = router({
       };
 
       await Promise.all(
-        notificationRecipients.map((recipient) =>
-          transporter.sendMail({ ...message, to: recipient })
-        )
+        notificationRecipients.map(async (recipient) => {
+          try {
+            const info = await transporter.sendMail({ ...message, to: recipient });
+            console.log(JSON.stringify({
+              event: 'notification.smtp.result',
+              recipient: maskEmail(recipient),
+              acceptedCount: info.accepted?.length ?? 0,
+              rejectedCount: info.rejected?.length ?? 0,
+              pendingCount: info.pending?.length ?? 0,
+              response: info.response ?? null,
+              messageId: info.messageId ?? null
+            }));
+            return info;
+          } catch (error: any) {
+            console.error(JSON.stringify({
+              event: 'notification.smtp.error',
+              recipient: maskEmail(recipient),
+              code: error?.code ?? null,
+              responseCode: error?.responseCode ?? null,
+              response: error?.response ?? null,
+              message: error?.message ?? 'Unknown SMTP error'
+            }));
+            throw error;
+          }
+        })
       );
 
       return { success: true, message: 'Submission logged & notified instantly.' };
