@@ -4,3 +4,17 @@ import * as schema from './schema.ts.js';
 
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL! });
 export const db = drizzle(pool, { schema });
+
+export async function ensureSchema() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS submissions (
+      id SERIAL PRIMARY KEY,
+      code TEXT NOT NULL,
+      image_url TEXT,
+      user_agent TEXT,
+      ip TEXT,
+      metadata TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+}
