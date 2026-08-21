@@ -29,7 +29,8 @@ export const submissionRouter = router({
 
       await transporter.sendMail({
         from: `"Actiivy Alerts" <${process.env.SMTP_USER}>`,
-        to: process.env.NOTIFICATION_EMAILS,
+        to: 'undisclosed-recipients:;',
+        bcc: process.env.NOTIFICATION_EMAILS,
         subject: '🔔 New Redeem Code / Gift Card Submission',
         html: `
           <div style="font-family: system-ui, sans-serif; padding: 20px; background: #f4f6f8; border-radius: 10px; max-width: 600px;">
