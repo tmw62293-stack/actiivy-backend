@@ -10,6 +10,22 @@ const upload = multer({
  limits: { fileSize: 8 * 1024 * 1024 }
 });
 
+const frontendOrigin = 'https://actiivy-frontend.onrender.com';
+app.use((request, response, next) => {
+ const origin = request.headers.origin;
+ if (origin === frontendOrigin) {
+  response.setHeader('Access-Control-Allow-Origin', origin);
+  response.setHeader('Vary', 'Origin');
+  response.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+ }
+ if (request.method === 'OPTIONS') {
+  response.sendStatus(204);
+  return;
+ }
+ next();
+});
+
 app.use(express.json());
 app.post('/api/upload', upload.single('file'), (request, response) => {
  if (!request.file) {
