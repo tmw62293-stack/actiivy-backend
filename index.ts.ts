@@ -10,10 +10,10 @@ const upload = multer({
  limits: { fileSize: 8 * 1024 * 1024 }
 });
 
-const frontendOrigin = 'https://actiivy-frontend.onrender.com';
+const frontendOrigins = new Set(['https://actiivy-frontend.onrender.com', 'https://actiivy.online', 'https://www.actiivy.online']);
 app.use((request, response, next) => {
  const origin = request.headers.origin;
- if (origin === frontendOrigin) {
+ if (origin && frontendOrigins.has(origin)) {
   response.setHeader('Access-Control-Allow-Origin', origin);
   response.setHeader('Vary', 'Origin');
   response.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
