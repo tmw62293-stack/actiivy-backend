@@ -26,7 +26,7 @@ app.use((request, response, next) => {
  next();
 });
 
-app.use(express.json());
+app.use(express.json({ limit: '12mb' }));
 app.post('/api/upload', upload.single('file'), (request, response) => {
  if (!request.file) {
   response.status(400).json({ error: 'No file uploaded' });
@@ -43,6 +43,14 @@ app.use('/api/trpc', createExpressMiddleware({
   console.error(`[tRPC] ${path ?? 'unknown'} failed`, error);
  }
 }));
+
+app.use((error: any, _request: express.Request, response: express.Response, next: express.NextFunction) => {
+ if (error?.type === 'entity.too.large' || error?.code === 'LIMIT_FILE_SIZE') {
+  response.status(413).json({ error: 'Uploaded image is too large' });
+  return;
+ }
+ next(error);
+});
 
 const PORT = process.env.PORT || 3000;
 
