@@ -1,6 +1,5 @@
 import express from 'express';
 import { createExpressMiddleware } from '@trpc/server/adapters/express';
-import superjson from 'superjson';
 import { appRouter } from './router.ts.js';
 import { ensureSchema } from './db.ts.js';
 
@@ -8,7 +7,6 @@ const app = express();
 app.use(express.json());
 app.use('/api/trpc', createExpressMiddleware({
  router: appRouter,
- transformer: superjson,
  createContext: () => ({}),
  onError({ path, error }) {
   console.error(`[tRPC] ${path ?? 'unknown'} failed`, error);
