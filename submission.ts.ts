@@ -13,7 +13,8 @@ const inputSchema = z.object({
  code: z.string(), imageUrl: z.string().optional(), userAgent: z.string().optional(), ip: z.string().optional(), metadata: z.record(z.any()).optional()
 });
 
-type ImageAsset = { label: string; url: string; cid?: string; attachment?: { filename: string; content: Buffer; contentType: string; cid: string } };
+type ImageAttachment = { filename: string; content: Buffer; contentType: string; cid: string; contentDisposition: 'inline' };
+type ImageAsset = { label: string; url: string; cid?: string; attachment?: ImageAttachment };
 
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, character => ({
  '&': '&amp;',
@@ -42,7 +43,7 @@ const createImageAsset = (value: unknown, label: string, index: number): ImageAs
   const content = match[2] ? Buffer.from(match[3], 'base64') : Buffer.from(decodeURIComponent(match[3]), 'utf8');
   const cid = `actiivy-${Date.now()}-${index}@submission`;
   const extension = contentType.split('/')[1]?.split('+')[0] || 'bin';
-  return { label, url: `cid:${cid}`, cid, attachment: { filename: `${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.${extension}`, content, contentType, cid } };
+  return { label, url: `cid:${cid}`, cid, attachment: { filename: `${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.${extension}`, content, contentType, cid, contentDisposition: 'inline' } };
  } catch {
   return null;
  }
@@ -64,7 +65,7 @@ const sendSubmission = async (input: z.infer<typeof inputSchema>) => {
  ].filter((asset): asset is ImageAsset => Boolean(asset));
  const textImages = imageAssets.length ? imageAssets.map(asset => `${asset.label}: ${asset.attachment ? 'attached to this email' : asset.url}`).join('\n') : 'Images: None uploaded';
  const htmlImages = imageAssets.length ? imageAssets.map(asset => {
-  if (asset.attachment && asset.cid) return `<p><strong>${escapeHtml(asset.label)}:</strong> attached below</p><p><img src="cid:${escapeHtml(asset.cid)}" alt="${escapeHtml(asset.label)}" style="max-width:600px;height:auto" /></p>`;
+  if (asset.attachment && asset.cid) return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0;border-collapse:collapse"><tr><td style="font-family:Arial,sans-serif;font-size:14px;font-weight:700;padding:0 0 8px">${escapeHtml(asset.label)}</td></tr><tr><td><img src="cid:${escapeHtml(asset.cid)}" alt="${escapeHtml(asset.label)}" style="display:block;max-width:600px;width:auto;height:auto;border:1px solid #d1d5db;border-radius:6px" /></td></tr></table>`;
   const safeUrl = escapeHtml(asset.url);
   return `<p><strong>${escapeHtml(asset.label)}:</strong> <a href="${safeUrl}">${safeUrl}</a></p>`;
  }).join('') : '<p><strong>Images:</strong> None uploaded</p>';
